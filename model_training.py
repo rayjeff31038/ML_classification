@@ -133,38 +133,38 @@ df = data.drop(columns = ['ID'])
 fig1, axes1 = plt.subplots(nrows=2, ncols=3, figsize=(14,7))
 
 #Age boxplot
-sns.boxplot(df, x='Chronic_Disease', y='Age', ax = axes1[0,0])
+sns.boxplot(df, x='Chronic_Disease', y='Age', ax = axes1[0,0], hue='Chronic_Disease', palette='Set2')
 axes1[0,0].set_title('Age distribution by Chronic_Disease')
 axes1[0,0].set_xlabel('Chronic_Disease')
 axes1[0,0].set_ylabel('Age')
 
 
 # Height_cm boxplot
-sns.boxplot(df, x='Chronic_Disease', y='Height_cm', ax = axes1[0,1])
+sns.boxplot(df, x='Chronic_Disease', y='Height_cm', ax = axes1[0,1], hue='Chronic_Disease', palette='Set2')
 axes1[0,1].set_title('Height_cm distribution by Chronic_Disease')
 axes1[0,1].set_xlabel('Chronic_Disease')
 axes1[0,1].set_ylabel('Height_cm')
 
 #Weight_kg boxplot
-sns.boxplot(df, x='Chronic_Disease', y='Weight_kg', ax = axes1[0,2])
+sns.boxplot(df, x='Chronic_Disease', y='Weight_kg', ax = axes1[0,2], hue='Chronic_Disease', palette='Set2')
 axes1[0,2].set_title('Weight_kg distribution by Chronic_Disease')
 axes1[0,2].set_xlabel('Chronic_Disease')
 axes1[0,2].set_ylabel('Weight_kg')
 
 #BMI boxplot
-sns.boxplot(df, x='Chronic_Disease', y='BMI', ax = axes1[1,0])
+sns.boxplot(df, x='Chronic_Disease', y='BMI', ax = axes1[1,0], hue='Chronic_Disease', palette='Set2')
 axes1[1,0].set_title('BMI distribution by Chronic_Disease')
 axes1[1,0].set_xlabel('Chronic_Disease')
 axes1[1,0].set_ylabel('BMI')
 
 #Stress level
-sns.boxplot(df, x='Chronic_Disease', y='Stress_Level', ax = axes1[1,1])
+sns.boxplot(df, x='Chronic_Disease', y='Stress_Level', ax = axes1[1,1], hue='Chronic_Disease', palette='Set2')
 axes1[1,1].set_title('Stress_Level by Chronic_Disease')
 axes1[1,1].set_xlabel('Chronic_Disease')
 axes1[1,1].set_ylabel('Stress_Level')
 
 #Sleep_Hours
-sns.boxplot(df, x='Chronic_Disease', y='Sleep_Hours', ax = axes1[1,2])
+sns.boxplot(df, x='Chronic_Disease', y='Sleep_Hours', ax = axes1[1,2], hue='Chronic_Disease', palette='Set2')
 axes1[1,2].set_title('Sleep_Hours distribution by Chronic_Disease')
 axes1[1,2].set_xlabel('Chronic_Disease')
 axes1[1,2].set_ylabel('Sleep_Hours')
@@ -239,6 +239,14 @@ plt.show()
 
 #input()
 
+#########################################################################################
+# Base on the heatmap result
+# BMI has strong corrlection between Height and Weight
+# It make sense, beacuse BMI was calculated from the formula: Weight(kg)/(Height(m))**2
+# In order to reduce the 'Multicollinearity'
+# Drop the columns Height and Weight but keep BMI
+#########################################################################################
+
 
 
 ############################
@@ -246,7 +254,7 @@ plt.show()
 #############################
 
 # Based on the boxplot of the numerical data, different standization methods must be used
-# Columns with outliers: Height_cm, Weight_kg, BMI, Sleep_Hours --> RobustScaler
+# Columns with outliers: BMI, Sleep_Hours --> RobustScaler
 # Columns without outliers: Age, Stress_Level --> StandardScaler
 
 # Based on the barplot of the Categorical data
@@ -256,12 +264,13 @@ plt.show()
 # Smoker, Exercise_Freq, Diet_Quality, Alcohol_Consumption --> OrdinalEncoder
 
 #data split
-X = df.drop(columns = ['Chronic_Disease'])
+#drop columns 'Height_cm','Weight_kg'
+X = df.drop(columns = ['Chronic_Disease','Height_cm','Weight_kg'])
 y = df['Chronic_Disease'].map({'No':0 ,'Yes':1})
 X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size = 0.2, random_state = 1)
 
 #columns for data transformation
-RobustScaler_columns = ['Height_cm','Weight_kg','BMI','Sleep_Hours']
+RobustScaler_columns = ['BMI','Sleep_Hours']
 StandardScaler_columns = ['Age','Stress_Level']
 one_hot_columns = ['Gender']
 
@@ -340,7 +349,7 @@ y_pred_lr = lr_CV_pipeline.predict(X_test)
 print('> LogisticRegression results')
 print(classification_report(y_test,y_pred_lr))
 print(confusion_matrix(y_test,y_pred_lr))
-print(lr_CV.best_params_,'\n')
+print(lr_CV_pipeline.named_steps['gridsearchcv'].best_params_, '\n')
 
 
 #SVC
@@ -358,7 +367,7 @@ y_pred_svc = svc_CV_piprline.predict(X_test)
 print('> SVC results')
 print(classification_report(y_test,y_pred_svc))
 print(confusion_matrix(y_test,y_pred_svc))
-print(svc_CV.best_params_, '\n')
+print(svc_CV_piprline.named_steps['gridsearchcv'].best_params_, '\n')
 
 
 # RandomForest
@@ -379,7 +388,7 @@ y_pred_rf = rf_CV_pipeline.predict(X_test)
 print('> RandomForest results')
 print(classification_report(y_test,y_pred_rf))
 print(confusion_matrix(y_test,y_pred_rf))
-print(rf_CV.best_params_,'\n')
+print(rf_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
 
 
 
@@ -401,28 +410,44 @@ y_pred_df = dt_CV_pipeline.predict(X_test)
 print('> DecisionTree results')
 print(classification_report(y_test,y_pred_df))
 print(confusion_matrix(y_test,y_pred_df))
-print(dt_CV.best_params_,'\n')
+print(dt_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
 
 
 #KNeighborsClassifier
+kn = KNeighborsClassifier()
+
+kn_param_grid = {
+    'n_neighbors': [3, 5, 7],
+    'weights': ['uniform', 'distance']
+}
+
+kn_CV = GridSearchCV(kn, kn_param_grid, cv=3, n_jobs = -1)
+kn_CV_pipeline = make_pipeline(mct, kn_CV)
+kn_CV_pipeline.fit(X_train, y_train)
+
+y_pred_kn = kn_CV_pipeline.predict(X_test)
+
+print('> KNeighbors results')
+print(classification_report(y_test, y_pred_kn))
+print(confusion_matrix(y_test, y_pred_kn))
+print(kn_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
+                                   
 
 
+#GaussianNB
+gnb = GaussianNB()
 
+gnb_param_grid = {
+    'var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
+}
 
+gnb_CV = GridSearchCV(gnb, gnb_param_grid, cv=3, n_jobs= -1)
+gnb_CV_pipeline = make_pipeline(mct, gnb_CV)
+gnb_CV_pipeline.fit(X_train, y_train)
 
-# #GaussianNB
-# gnb = GaussianNB()
-# gnb_param_grid = {
-#     'var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
-# }
-# gnb_CV = GridSearchCV(gnb, gnb_param_grid, cv=3, n_jobs= -1)
-# gnb_CV_pipeline = make_pipeline(mct, gnb_CV)
-# gnb_CV_pipeline.fit(X_train, y_train)
-
-# y_pred_gnb = gnb_CV_pipeline.predict(X_test)
-# print(classification_report(y_test, y_pred_gnb))
-# print(confusion_matrix(y_test, y_pred_gnb))
-# print(gnb_CV.best_params_)
-
-
+y_pred_gnb = gnb_CV_pipeline.predict(X_test)
+print('> GaussianNB results')
+print(classification_report(y_test, y_pred_gnb))
+print(confusion_matrix(y_test, y_pred_gnb))
+print(gnb_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
 
