@@ -1,13 +1,23 @@
+###############################################################
+# Project Description:
+#
+# This project applies machine learning (ML) techniques for 
+# classification using the Sleep Health and Lifestyle Dataset 
+# from Kaggle. 
+# By analyzing body parameters and lifestyle factors, the goal 
+# is to build a predictive model for identifying the presence 
+# of chronic disease.
+###############################################################
+
 import pandas as pd
 import numpy as np
 
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, StratifiedKFold
 
-from sklearn.preprocessing import StandardScaler, RobustScaler
-from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, RobustScaler, OrdinalEncoder, OneHotEncoder, FunctionTransformer
 
 from sklearn.impute import SimpleImputer
 
@@ -25,8 +35,8 @@ from sklearn.metrics import classification_report, confusion_matrix, roc_auc_sco
 
 
 
-#The file was downloaded from Kaggle: "Sleep Health and Lifestyle Dataset".
-#https://www.kaggle.com/datasets/uom190346a/sleep-health-and-lifestyle-dataset/data
+#The file was downloaded from Kaggle: "Health And Lifestyle Dataset".
+#https://www.kaggle.com/datasets/sahilislam007/health-and-lifestyle-dataset/code
 #read the file
 data = pd.read_csv('synthetic_health_lifestyle_dataset.csv')
 
@@ -120,131 +130,138 @@ print(data['Chronic_Disease'].value_counts(normalize = True))
 # No     0.806933
 # Yes    0.193067
 
+count_Chronic = data['Chronic_Disease'].value_counts().reset_index()
+count_Chronic.columns = ['Chronic_Disease','counts']
+print(count_Chronic)
+
+
+#draw a barplot for Count of Chronic_Disease
+ax = sns.barplot(data = count_Chronic, x = 'Chronic_Disease', y = 'counts', hue = 'Chronic_Disease')
+ax.set_title('Count of Chronic_Disease')
+ax.set_xlabel('Chronic_Disease')
+ax.set_ylabel('counts')
+plt.savefig('Count of Chronic_Disease_barplot.png', dpi = 300)
+#plt.show()
+plt.close()
+input()
 #The target variable 'Chronic_Disease' has an imbalanced class distribution
 #use 'stratify' to split data
 #use  class_weight='balanced' whem training models
-#input()
+
 
 # Drop the unnecessary column "ID"
 df = data.drop(columns = ['ID'])
 
-# Check Numerical data distribution by = 'Chronic_Disease'
-# Age, Height_cm, Weight_kg, BMI, Stress_Level, Sleep_Hours
+# Use boxplot to check data distribution to check Numerical data distribution by = 'Chronic_Disease'
+num_col = []
+for c in df.columns:
+    if df[c].dtypes !=  'object':
+        num_col.append(c)
+        print(f'numerical col: {c}')
+# numerical col: Age
+# numerical col: Height_cm
+# numerical col: Weight_kg
+# numerical col: BMI
+# numerical col: Stress_Level
+# numerical col: Sleep_Hours
+
 fig1, axes1 = plt.subplots(nrows=2, ncols=3, figsize=(14,7))
+axes1 = axes1.flatten()
 
-#Age boxplot
-sns.boxplot(df, x='Chronic_Disease', y='Age', ax = axes1[0,0], hue='Chronic_Disease', palette='Set2')
-axes1[0,0].set_title('Age distribution by Chronic_Disease')
-axes1[0,0].set_xlabel('Chronic_Disease')
-axes1[0,0].set_ylabel('Age')
-
-
-# Height_cm boxplot
-sns.boxplot(df, x='Chronic_Disease', y='Height_cm', ax = axes1[0,1], hue='Chronic_Disease', palette='Set2')
-axes1[0,1].set_title('Height_cm distribution by Chronic_Disease')
-axes1[0,1].set_xlabel('Chronic_Disease')
-axes1[0,1].set_ylabel('Height_cm')
-
-#Weight_kg boxplot
-sns.boxplot(df, x='Chronic_Disease', y='Weight_kg', ax = axes1[0,2], hue='Chronic_Disease', palette='Set2')
-axes1[0,2].set_title('Weight_kg distribution by Chronic_Disease')
-axes1[0,2].set_xlabel('Chronic_Disease')
-axes1[0,2].set_ylabel('Weight_kg')
-
-#BMI boxplot
-sns.boxplot(df, x='Chronic_Disease', y='BMI', ax = axes1[1,0], hue='Chronic_Disease', palette='Set2')
-axes1[1,0].set_title('BMI distribution by Chronic_Disease')
-axes1[1,0].set_xlabel('Chronic_Disease')
-axes1[1,0].set_ylabel('BMI')
-
-#Stress level
-sns.boxplot(df, x='Chronic_Disease', y='Stress_Level', ax = axes1[1,1], hue='Chronic_Disease', palette='Set2')
-axes1[1,1].set_title('Stress_Level by Chronic_Disease')
-axes1[1,1].set_xlabel('Chronic_Disease')
-axes1[1,1].set_ylabel('Stress_Level')
-
-#Sleep_Hours
-sns.boxplot(df, x='Chronic_Disease', y='Sleep_Hours', ax = axes1[1,2], hue='Chronic_Disease', palette='Set2')
-axes1[1,2].set_title('Sleep_Hours distribution by Chronic_Disease')
-axes1[1,2].set_xlabel('Chronic_Disease')
-axes1[1,2].set_ylabel('Sleep_Hours')
+for i, numcol in enumerate(num_col):
+    sns.boxplot(df, x = 'Chronic_Disease', y = numcol, ax = axes1[i], hue = 'Chronic_Disease', palette='Set2')
+    axes1[i].set_title(f'{numcol} distribution by Chronic_Disease')
+    axes1[i].set_xlabel('Chronic_Disease')
+    axes1[i].set_ylabel(f'{numcol}')
 
 plt.tight_layout()
 plt.savefig('Numerical_data_boxplot.png', dpi=300)
 #plt.show()
 plt.close()
+   
 
-# Check Categorical data distribution by = 'Chronic_Disease'
+
+# Use barplot to check Categorical data distribution by = 'Chronic_Disease'
+catcol = []
+for c in df.columns:
+    if df[c].dtypes == 'object':
+        if c != 'Chronic_Disease':
+            catcol.append(c)
+            print(f'categorical col: {c}')
+# categorical col: Gender
+# categorical col: Smoker
+# categorical col: Exercise_Freq
+# categorical col: Diet_Quality
+# categorical col: Alcohol_Consumption
+# categorical col: Chronic_Disease
+
+
 # Gender, Smoker, Exercise_Freq, Diet_Quality, Alcohol_Consumption
 fig2, axes2 = plt.subplots(nrows=2, ncols=3, figsize=(14,8))
+axes2 = axes2.flatten()
 
-df_Gender = df.groupby(['Chronic_Disease','Gender']).size().reset_index(name = 'count')
-sns.barplot(df_Gender, x='Chronic_Disease', y='count', hue='Gender', ax = axes2[0,0])
-axes2[0,0].set_title('Count of Gender by Chronic Disease Status')
-axes2[0,0].set_xlabel('Chronic Disease')
-axes2[0,0].set_ylabel('Count')
+for i, col in enumerate(catcol):
+    temp_df = df.groupby(['Chronic_Disease', col]).size().reset_index(name = 'count')
+    sns.barplot(temp_df, x = 'Chronic_Disease', y = 'count', hue = col, ax = axes2[i])
+    axes2[i].set_title(f'Count of {col} by Chronic Disease Status')
+    axes2[i].set_xlabel('Chronic Disease')
+    axes2[i].set_ylabel('Count')
 
-df_Smoker = df.groupby(['Chronic_Disease','Smoker']).size().reset_index(name = 'count')
-sns.barplot(df_Smoker, x='Chronic_Disease', y='count', hue='Smoker', ax = axes2[0,1])
-axes2[0,1].set_title('Count of Smoker by Chronic Disease Status')
-axes2[0,1].set_xlabel('Chronic Disease')
-axes2[0,1].set_ylabel('Count')
-
-df_Exercise_Freq = df.groupby(['Chronic_Disease','Exercise_Freq']).size().reset_index(name = 'count')
-sns.barplot(df_Exercise_Freq, x='Chronic_Disease', y='count', hue='Exercise_Freq', ax = axes2[0,2])
-axes2[0,2].set_title('Count of Exercise_Freq by Chronic Disease Status')
-axes2[0,2].set_xlabel('Chronic Disease')
-axes2[0,2].set_ylabel('Count')
-
-df_Diet_Quality = df.groupby(['Chronic_Disease','Diet_Quality']).size().reset_index(name = 'count')
-sns.barplot(df_Diet_Quality , x='Chronic_Disease', y='count', hue='Diet_Quality', ax = axes2[1,0])
-axes2[1,0].set_title('Count of Diet_Quality by Chronic Disease Status')
-axes2[1,0].set_xlabel('Chronic Disease')
-axes2[1,0].set_ylabel('Count')
-
-df_Alcohol_Consumption = df.groupby(['Chronic_Disease','Alcohol_Consumption']).size().reset_index(name = 'count')
-sns.barplot(df_Alcohol_Consumption , x='Chronic_Disease', y='count', hue='Alcohol_Consumption', ax = axes2[1,1])
-axes2[1,1].set_title('Count of Alcohol_Consumption by Chronic Disease Status')
-axes2[1,1].set_xlabel('Chronic Disease')
-axes2[1,1].set_ylabel('Count')
-
+#close empty figure
+for ax in axes2[len(catcol):]:
+    ax.axis('off')
 
 plt.tight_layout()
-plt.savefig('Categorical_data_barplot.png', dpi=300)
+plt.savefig('Categorical_data_barplot.png', dpi = 300)
 #plt.show()
 plt.close()
 
-
 #Correlation Heatmap
 cor = df.corr(numeric_only=True)
-print(cor)
-print(cor.isna().sum())
 plt.figure(figsize=(14,10))
 
 sns.heatmap(
-    data=cor,
-    annot=True,
-    fmt=".2f",
-    linewidths=0.5,
-    annot_kws={"size": 14, "color": "black"},
-    cmap='coolwarm',
-    vmin=-1, vmax=1,
+    data = cor,
+    annot = True,
+    fmt = ".2f",
+    linewidths = 0.5,
+    annot_kws = {"size": 14, "color": "black"},
+    cmap ='coolwarm',
+    vmin = -1, vmax = 1,
     center=0
 )
-plt.title("Correlation Heatmap",size=16)
-plt.xticks(fontsize=12)
-plt.yticks(fontsize=12)
-plt.savefig('Correlation Heatmap.png', dpi=300)
+plt.title("Correlation Heatmap", size = 16)
+plt.xticks(fontsize = 12)
+plt.yticks(fontsize = 12)
+plt.savefig('Correlation Heatmap.png', dpi = 300)
 plt.show()
 
 #input()
 
 #########################################################################################
+# >>> EDA results evulation
+#
+# The target variable 'Chronic_Disease' has an imbalanced class distribution:
+# No     0.806933
+# Yes    0.193067
+# use 'stratify' to split data
+# use class_weight = 'balanced' whem training models
+#
+# Based on the boxplot of the numerical data, different standization methods must be used
+# Columns with many outliers: BMI, Sleep_Hours --> RobustScaler
+# Columns without outliers: Age, Stress_Level --> StandardScaler
+#
+# Based on the barplot of the Categorical data
+# Only 'Smoker' data show some relationship with Chronic_Disease
+# But still can put all the columns in model training
+# Gender--> OneHotEncoder
+# Smoker, Exercise_Freq, Diet_Quality, Alcohol_Consumption --> OrdinalEncoder
+#
 # Base on the heatmap result
 # BMI has strong corrlection between Height and Weight
 # It make sense, beacuse BMI was calculated from the formula: Weight(kg)/(Height(m))**2
 # In order to reduce the 'Multicollinearity'
-# Drop the columns Height and Weight but keep BMI
+# Drop the columns 'Height' and 'Weight' but keep 'BMI'
 #########################################################################################
 
 
@@ -253,18 +270,9 @@ plt.show()
 #Step2. data transformation
 #############################
 
-# Based on the boxplot of the numerical data, different standization methods must be used
-# Columns with outliers: BMI, Sleep_Hours --> RobustScaler
-# Columns without outliers: Age, Stress_Level --> StandardScaler
-
-# Based on the barplot of the Categorical data
-# Only 'Smoker' data show some relationship with Chronic_Disease
-# But still can put all the columns in model training
-# Gender--> OneHotEncoder
-# Smoker, Exercise_Freq, Diet_Quality, Alcohol_Consumption --> OrdinalEncoder
-
 #data split
 #drop columns 'Height_cm','Weight_kg'
+# use 'stratify' when split data
 X = df.drop(columns = ['Chronic_Disease','Height_cm','Weight_kg'])
 y = df['Chronic_Disease'].map({'No':0 ,'Yes':1})
 X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size = 0.2, random_state = 1)
@@ -279,17 +287,6 @@ Exercise_Freq_rank = ['no','1-2 times/week','3-5 times/week','Daily']
 Diet_Quality_rank = ['Poor','Average','Good','Excellent']
 Alcohol_Consumption_rank = ['no','Low','Moderate','High']
 
-# mct = make_column_transformer(
-#     (RobustScaler(), RobustScaler_columns),
-#     (StandardScaler(), StandardScaler_columns),
-#     (OneHotEncoder(handle_unknown = 'ignore'), one_hot_columns),
-#     (OrdinalEncoder(categories = [Smoker_rank]), ['Smoker']),
-#     (OrdinalEncoder(categories = [Exercise_Freq_rank]), ['Exercise_Freq']),
-#     (OrdinalEncoder(categories = [Diet_Quality_rank]), ['Diet_Quality']),
-#     (OrdinalEncoder(categories = [Alcohol_Consumption_rank]), ['Alcohol_Consumption']),
-#     remainder = 'drop',
-#     n_jobs= -1
-# )
 
 mct = make_column_transformer(
     (RobustScaler(), RobustScaler_columns),
@@ -322,6 +319,9 @@ mct = make_column_transformer(
 
 ############################
 #Step3. model training
+#
+# Add class_weight = 'balanced' in model if can
+# Use StratifiedKFold() to split data  
 #############################
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
@@ -331,123 +331,142 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 
 #LogisticRegression
-lr = LogisticRegression(class_weight='balanced')
+lr = LogisticRegression()
+lr_CV_pipeline = make_pipeline(mct, lr)
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
 lr_param_grid = {
-    'class_weight': [None, 'balanced'],
-    'penalty':['l2'],
-    'C':[0.01, 0.1, 1, 10],
-    'max_iter':[100, 500, 1000]
+    'logisticregression__class_weight': [None, 'balanced'],
+    'logisticregression__penalty':['l2'],
+    'logisticregression__C':[0.01, 0.1, 1, 10],
+    'logisticregression__max_iter':[100, 500, 1000]
 }
 
-lr_CV = GridSearchCV(lr, lr_param_grid, cv=3, n_jobs= -1)
-
-lr_CV_pipeline = make_pipeline(mct, lr_CV)
-
-lr_CV_pipeline.fit(X_train, y_train)
-y_pred_lr = lr_CV_pipeline.predict(X_test)
+lr_CV = GridSearchCV(lr_CV_pipeline, lr_param_grid, cv = cv, n_jobs= -1)
+lr_CV.fit(X_train, y_train)
+y_pred_lr = lr_CV.predict(X_test)
 
 print('> LogisticRegression results')
 print(classification_report(y_test,y_pred_lr))
 print(confusion_matrix(y_test,y_pred_lr))
-print(lr_CV_pipeline.named_steps['gridsearchcv'].best_params_, '\n')
+print(f'Best params: {lr_CV.best_params_}', '\n')
 
 
 #SVC
-svc = SVC(class_weight='balanced')
-svc_param_grid = {
-    'C': [0.1, 1, 10],
-    'kernel': ['linear', 'rbf', 'poly']
-}
-svc_CV = GridSearchCV(svc, svc_param_grid, cv =3, n_jobs=-1)
-svc_CV_piprline =make_pipeline(mct, svc_CV)
+svc = SVC()
+svc_CV_piprline = make_pipeline(mct, svc)
 
-svc_CV_piprline.fit(X_train, y_train)
-y_pred_svc = svc_CV_piprline.predict(X_test)
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+svc_param_grid = {
+    'svc__C': [0.1, 1, 10],
+    'svc__kernel': ['linear', 'rbf', 'poly'],
+    'svc__gamma': ['scale', 'auto'],
+    'svc__degree': [2, 3, 4],
+    'svc__class_weight': [None, 'balanced']
+}
+
+svc_CV = GridSearchCV(svc_CV_piprline, svc_param_grid, cv = cv, n_jobs = -1)
+
+svc_CV.fit(X_train, y_train)
+y_pred_svc = svc_CV.predict(X_test)
 
 print('> SVC results')
-print(classification_report(y_test,y_pred_svc))
-print(confusion_matrix(y_test,y_pred_svc))
-print(svc_CV_piprline.named_steps['gridsearchcv'].best_params_, '\n')
+print(classification_report(y_test, y_pred_svc))
+print(confusion_matrix(y_test, y_pred_svc))
+print(f'Best params: {svc_CV.best_params_}', '\n')
 
 
-# RandomForest
-rf = RandomForestClassifier(class_weight='balanced')
+# RandomForestClassifier
+rf = RandomForestClassifier(random_state = 1, n_jobs=-1)
+rf_CV_pipeline = make_pipeline(mct, rf)
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
 rf_param_grid = {
-    'n_estimators':[100,250,500],
-    'max_depth':[10,25,50],
-    'min_samples_split':[2,5,10],
-    'min_samples_leaf':[2,5,10],
-    'class_weight':[None, 'balanced']
+    'randomforestclassifier__n_estimators':[100,250,500],
+    'randomforestclassifier__max_depth':[10,25,50],
+    'randomforestclassifier__min_samples_split':[2,5,10],
+    'randomforestclassifier__min_samples_leaf':[2,5,10],
+    'randomforestclassifier__class_weight':[None, 'balanced']
 }
-rf_CV = GridSearchCV(rf,rf_param_grid, cv =3, n_jobs =-1)
-rf_CV_pipeline = make_pipeline(mct, rf_CV)
+rf_CV = GridSearchCV(rf_CV_pipeline, rf_param_grid, cv = cv, n_jobs =-1)
 
-rf_CV_pipeline.fit(X_train, y_train)
-y_pred_rf = rf_CV_pipeline.predict(X_test)
+rf_CV.fit(X_train, y_train)
+y_pred_rf = rf_CV.predict(X_test)
 
 print('> RandomForest results')
-print(classification_report(y_test,y_pred_rf))
-print(confusion_matrix(y_test,y_pred_rf))
-print(rf_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
+print(classification_report(y_test, y_pred_rf))
+print(confusion_matrix(y_test, y_pred_rf))
+print(f'Best params: {rf_CV.best_params_}', '\n')
 
 
 
 #DecisionTreeClassifier
-dt = DecisionTreeClassifier(class_weight='balanced')
+dt = DecisionTreeClassifier(random_state = 1)
+dt_CV_pipeline = make_pipeline(mct, dt)
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
 dt_param_grid = {
-    'max_depth':[3, 5, 10, None],
-    'min_samples_leaf':[1, 5, 10],
-    'class_weight':[None, 'balanced'],
-    'random_state':[1]
+    'decisiontreeclassifier__max_depth': [3, 5, 10, None],
+    'decisiontreeclassifier__min_samples_leaf': [1, 5, 10],
+    'decisiontreeclassifier__class_weight': [None, 'balanced']
 }
 
-dt_CV = GridSearchCV(dt, dt_param_grid, cv=3, n_jobs = -1)
-dt_CV_pipeline = make_pipeline(mct, dt_CV)
-dt_CV_pipeline.fit(X_train, y_train)
+dt_CV = GridSearchCV(dt_CV_pipeline, dt_param_grid, cv = cv, n_jobs = -1)
+dt_CV.fit(X_train, y_train)
 
-y_pred_df = dt_CV_pipeline.predict(X_test)
+y_pred_dt = dt_CV.predict(X_test)
 
 print('> DecisionTree results')
-print(classification_report(y_test,y_pred_df))
-print(confusion_matrix(y_test,y_pred_df))
-print(dt_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
+print(classification_report(y_test, y_pred_dt))
+print(confusion_matrix(y_test, y_pred_dt))
+print(f'Best params: {dt_CV.best_params_}', '\n')
 
 
 #KNeighborsClassifier
 kn = KNeighborsClassifier()
+kn_CV_pipeline = make_pipeline(mct, kn)
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
 
 kn_param_grid = {
-    'n_neighbors': [3, 5, 7],
-    'weights': ['uniform', 'distance']
+    'kneighborsclassifier__n_neighbors': [3, 5, 7],
+    'kneighborsclassifier__weights': ['uniform', 'distance']
 }
 
-kn_CV = GridSearchCV(kn, kn_param_grid, cv=3, n_jobs = -1)
-kn_CV_pipeline = make_pipeline(mct, kn_CV)
-kn_CV_pipeline.fit(X_train, y_train)
+kn_CV = GridSearchCV(kn_CV_pipeline, kn_param_grid, cv= cv, n_jobs = -1)
+kn_CV.fit(X_train, y_train)
 
-y_pred_kn = kn_CV_pipeline.predict(X_test)
+y_pred_kn = kn_CV.predict(X_test)
 
 print('> KNeighbors results')
 print(classification_report(y_test, y_pred_kn))
 print(confusion_matrix(y_test, y_pred_kn))
-print(kn_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
+print(f'Best params: {kn_CV.best_params_}', '\n')
                                    
 
 
 #GaussianNB
+dense = FunctionTransformer(lambda X: X.toarray(), accept_sparse=True)
+
 gnb = GaussianNB()
+gnb_CV_pipeline = make_pipeline(mct,dense, gnb)
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
 
 gnb_param_grid = {
-    'var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
+    'gaussiannb__var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
 }
 
-gnb_CV = GridSearchCV(gnb, gnb_param_grid, cv=3, n_jobs= -1)
-gnb_CV_pipeline = make_pipeline(mct, gnb_CV)
-gnb_CV_pipeline.fit(X_train, y_train)
+gnb_CV = GridSearchCV(gnb_CV_pipeline, gnb_param_grid, cv = cv, n_jobs= -1)
+gnb_CV.fit(X_train, y_train)
 
-y_pred_gnb = gnb_CV_pipeline.predict(X_test)
+y_pred_gnb = gnb_CV.predict(X_test)
+
 print('> GaussianNB results')
 print(classification_report(y_test, y_pred_gnb))
 print(confusion_matrix(y_test, y_pred_gnb))
-print(gnb_CV_pipeline.named_steps['gridsearchcv'].best_params_,'\n')
-
+print(f'Best params: {gnb_CV.best_params_}', '\n')
