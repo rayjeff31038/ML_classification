@@ -3,27 +3,27 @@ This project applies machine learning (ML) techniques for classification using t
 By analyzing body parameters and lifestyle factors, the goal is to build a predictive model for identifying the presence of chronic disease.  
 
 ## Project File Descriptions
-1. synthetic_health_lifestyle_dataset.csv - The raw dataset containing chronic disease and lifestyle information.  
-2. model_training.py – Python script containing the regression model training process.  
+1. synthetic_health_lifestyle_dataset.csv - The raw dataset containing chronic disease, body parameters and lifestyle informations.  
+2. model_training.py – Python script containing the classification model training process.  
 3. Visualization PNG files – Plots generated from exploratory data analysis (EDA) and saved as .png images.
-4. model_results.csv – A DataFrame summarizing the performance of each regression model.
+4. model_results.csv – A DataFrame summarizing the performance of each classification model.
 
 ## Aim
 The goal of this project is to predict the presence of chronic disease based on body parameters and lifestyle factors using classification models. 
 
 ## Data Description
-ID: Unique identifier for each individual
-Age: Age of the individual (in years)
-Gender: Gender identity (Male, Female, Other)
-Height_cm: Height in centimeters
-Weight_kg: Weight in kilograms
-BMI: calculated as weight in kg / height in m²
-Smoker: Indicates whether the person is a smoker (Yes, No)
-Exercise_Freq: Frequency of physical exercise (None, 1-2 times/week, 3-5 times/week, Daily)
-Diet_Quality: Self-rated diet quality (Poor, Average, Good, Excellent)
-Alcohol_Consumption: Level of alcohol intake (None, Low, Moderate, High)
-Chronic_Disease: Whether the person has a chronic illness (Yes, No)
-Stress_Level: Self-reported stress level on a scale from 1 (low) to 10 (high)
+ID: Unique identifier for each individual  
+Age: Age of the individual (in years)  
+Gender: Gender identity (Male, Female, Other)  
+Height_cm: Height in centimeters  
+Weight_kg: Weight in kilograms  
+BMI: calculated as weight in kg / height in m²  
+Smoker: Indicates whether the person is a smoker (Yes, No)  
+Exercise_Freq: Frequency of physical exercise (None, 1-2 times/week, 3-5 times/week, Daily)  
+Diet_Quality: Self-rated diet quality (Poor, Average, Good, Excellent)  
+Alcohol_Consumption: Level of alcohol intake (None, Low, Moderate, High)  
+Chronic_Disease: Whether the person has a chronic illness (Yes, No)  
+Stress_Level: Self-reported stress level on a scale from 1 (low) to 10 (high)  
 Sleep_Hours: Average hours of sleep per night  
 
 ## Analysis Workflow
@@ -31,7 +31,9 @@ Sleep_Hours: Average hours of sleep per night
    -Examine the data structure, fill in missing values, and use visualizations to observe the data distribution and correlations. Then perform preprocessing to organize the data into a usable format.
      
 2. Data preprocessing
-   -Based on the EDA results, perform transformations on the dataset’s columns — for example, standardize numerical columns, and convert categorical columns into numerical format using OneHotEncoder or OrdinalEncoder.
+   -Based on the results of exploratory data analysis (EDA), perform transformations on the dataset’s columns.
+   -Standardize numerical columns, and process categorical columns by addressing issues such as highly correlated features and categories with excessive cardinality (merging or grouping them when necessary).
+   -Finally, convert categorical columns into numerical format using OneHotEncoder or OrdinalEncoder.  
    
 3. Model training
    -Multiple classification models will be trained and compared to evaluate their performance.  
