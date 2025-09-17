@@ -13,17 +13,29 @@ The goal of this project is to predict the presence of chronic disease based on 
 
 ## Data Description
 ID: Unique identifier for each individual  
+
 Age: Age of the individual (in years)  
+
 Gender: Gender identity (Male, Female, Other)  
+
 Height_cm: Height in centimeters  
+
 Weight_kg: Weight in kilograms  
+
 BMI: calculated as weight in kg / height in m²  
+
 Smoker: Indicates whether the person is a smoker (Yes, No)  
+
 Exercise_Freq: Frequency of physical exercise (None, 1-2 times/week, 3-5 times/week, Daily)  
+
 Diet_Quality: Self-rated diet quality (Poor, Average, Good, Excellent)  
+
 Alcohol_Consumption: Level of alcohol intake (None, Low, Moderate, High)  
+
 Chronic_Disease: Whether the person has a chronic illness (Yes, No)  
+
 Stress_Level: Self-reported stress level on a scale from 1 (low) to 10 (high)  
+
 Sleep_Hours: Average hours of sleep per night  
 
 ## Analysis Workflow
