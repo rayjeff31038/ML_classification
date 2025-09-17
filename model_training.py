@@ -22,16 +22,22 @@ from sklearn.preprocessing import StandardScaler, RobustScaler, OrdinalEncoder, 
 from sklearn.impute import SimpleImputer
 
 from sklearn.compose import make_column_transformer
+from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline, make_pipeline
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.naive_bayes import GaussianNB
 
-from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score
+from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, average_precision_score, precision_score, recall_score, f1_score, accuracy_score
+
+#for data augmentation
+from imblearn.pipeline import Pipeline as ImbPipeline
+from imblearn.over_sampling import SMOTE
+from imblearn.over_sampling import SMOTENC
 
 
 
@@ -143,7 +149,7 @@ ax.set_ylabel('counts')
 plt.savefig('Count of Chronic_Disease_barplot.png', dpi = 300)
 #plt.show()
 plt.close()
-input()
+#input()
 #The target variable 'Chronic_Disease' has an imbalanced class distribution
 #use 'stratify' to split data
 #use  class_weight='balanced' whem training models
@@ -234,7 +240,7 @@ plt.title("Correlation Heatmap", size = 16)
 plt.xticks(fontsize = 12)
 plt.yticks(fontsize = 12)
 plt.savefig('Correlation Heatmap.png', dpi = 300)
-plt.show()
+#plt.show()
 
 #input()
 
@@ -291,7 +297,7 @@ Alcohol_Consumption_rank = ['no','Low','Moderate','High']
 mct = make_column_transformer(
     (RobustScaler(), RobustScaler_columns),
     (StandardScaler(), StandardScaler_columns),
-    (OneHotEncoder(handle_unknown = 'ignore'), one_hot_columns),
+    (OneHotEncoder(handle_unknown = 'ignore', sparse_output = False), one_hot_columns),
     (Pipeline([
         ('ordinal', OrdinalEncoder(categories=[Smoker_rank])),
         ('scale', StandardScaler())
@@ -317,20 +323,20 @@ mct = make_column_transformer(
 
 
 
-############################
-#Step3. model training
+####################################################################################
+# Step3. model training
+# 模型選擇策略: 可處理是否有線性邊界分隔
+# 如果模型可以 加入 class_weight = 'balanced' 降低類別不平衡的影響
+
+#
 #
 # Add class_weight = 'balanced' in model if can
-# Use StratifiedKFold() to split data  
-#############################
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.naive_bayes import GaussianNB
+# Use StratifiedKFold() to split data 
+# scoring='average_precision'
+#####################################################################################
+results = []
 
-#LogisticRegression
+# #LogisticRegression
 lr = LogisticRegression()
 lr_CV_pipeline = make_pipeline(mct, lr)
 
@@ -343,31 +349,61 @@ lr_param_grid = {
     'logisticregression__max_iter':[100, 500, 1000]
 }
 
-lr_CV = GridSearchCV(lr_CV_pipeline, lr_param_grid, cv = cv, n_jobs= -1)
+lr_CV = GridSearchCV(lr_CV_pipeline, lr_param_grid, cv = cv, scoring='average_precision', n_jobs= -1, verbose=1)
 lr_CV.fit(X_train, y_train)
 y_pred_lr = lr_CV.predict(X_test)
 
 print('> LogisticRegression results')
-print(classification_report(y_test,y_pred_lr))
-print(confusion_matrix(y_test,y_pred_lr))
+print(classification_report(y_test, y_pred_lr))
+print(confusion_matrix(y_test, y_pred_lr))
 print(f'Best params: {lr_CV.best_params_}', '\n')
+
+y_proba = lr_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_lr, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_lr), 3)
+f1        = round(f1_score(y_test, y_pred_lr), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_lr), 3)
+
+results.append({
+    'model': 'LogisticRegression',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': lr_CV.best_params_
+})
 
 
 #SVC
 svc = SVC()
-svc_CV_piprline = make_pipeline(mct, svc)
+svc_CV_pipeline = make_pipeline(mct, svc)
 
 cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
 
-svc_param_grid = {
-    'svc__C': [0.1, 1, 10],
-    'svc__kernel': ['linear', 'rbf', 'poly'],
-    'svc__gamma': ['scale', 'auto'],
-    'svc__degree': [2, 3, 4],
-    'svc__class_weight': [None, 'balanced']
-}
+svc_param_grid = [
 
-svc_CV = GridSearchCV(svc_CV_piprline, svc_param_grid, cv = cv, n_jobs = -1)
+    {'svc__kernel': ['linear'],
+     'svc__C': [0.1, 1, 10],
+     'svc__class_weight': [None, 'balanced']},
+
+    {'svc__kernel': ['rbf'],
+     'svc__C': [0.1, 1, 10],
+     'svc__gamma': ['scale', 'auto'],
+     'svc__class_weight': [None, 'balanced']},
+
+    {'svc__kernel': ['poly'],
+     'svc__C': [0.1, 1, 10],
+     'svc__gamma': ['scale', 'auto'],
+     'svc__degree': [2, 3, 4],
+     'svc__class_weight': [None, 'balanced']},
+]
+
+svc_CV = GridSearchCV(svc_CV_pipeline, svc_param_grid, cv = cv, scoring='average_precision', n_jobs= -1, verbose=1)
 
 svc_CV.fit(X_train, y_train)
 y_pred_svc = svc_CV.predict(X_test)
@@ -376,6 +412,26 @@ print('> SVC results')
 print(classification_report(y_test, y_pred_svc))
 print(confusion_matrix(y_test, y_pred_svc))
 print(f'Best params: {svc_CV.best_params_}', '\n')
+
+scores = svc_CV.decision_function(X_test)
+roc = round(roc_auc_score(y_test, scores), 3)
+pr  = round(average_precision_score(y_test, scores), 3)
+
+precision = round(precision_score(y_test,y_pred_svc, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_svc), 3)
+f1        = round(f1_score(y_test, y_pred_svc), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_svc), 3)
+
+results.append({
+    'model': 'SVC',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': svc_CV.best_params_
+})
 
 
 # RandomForestClassifier
@@ -391,7 +447,7 @@ rf_param_grid = {
     'randomforestclassifier__min_samples_leaf':[2,5,10],
     'randomforestclassifier__class_weight':[None, 'balanced']
 }
-rf_CV = GridSearchCV(rf_CV_pipeline, rf_param_grid, cv = cv, n_jobs =-1)
+rf_CV = GridSearchCV(rf_CV_pipeline, rf_param_grid, cv = cv, scoring='average_precision', n_jobs= -1, verbose=1)
 
 rf_CV.fit(X_train, y_train)
 y_pred_rf = rf_CV.predict(X_test)
@@ -400,6 +456,26 @@ print('> RandomForest results')
 print(classification_report(y_test, y_pred_rf))
 print(confusion_matrix(y_test, y_pred_rf))
 print(f'Best params: {rf_CV.best_params_}', '\n')
+
+y_proba = rf_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test,y_pred_rf, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_rf), 3)
+f1        = round(f1_score(y_test, y_pred_rf), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_rf), 3)
+
+results.append({
+    'model': 'RandomForestClassifier',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': rf_CV.best_params_
+})
 
 
 
@@ -415,7 +491,7 @@ dt_param_grid = {
     'decisiontreeclassifier__class_weight': [None, 'balanced']
 }
 
-dt_CV = GridSearchCV(dt_CV_pipeline, dt_param_grid, cv = cv, n_jobs = -1)
+dt_CV = GridSearchCV(dt_CV_pipeline, dt_param_grid, cv = cv, scoring='average_precision', n_jobs= -1, verbose=1)
 dt_CV.fit(X_train, y_train)
 
 y_pred_dt = dt_CV.predict(X_test)
@@ -424,6 +500,26 @@ print('> DecisionTree results')
 print(classification_report(y_test, y_pred_dt))
 print(confusion_matrix(y_test, y_pred_dt))
 print(f'Best params: {dt_CV.best_params_}', '\n')
+
+y_proba = dt_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test,y_pred_dt, zero_division = 0), 3)
+recall    = round(recall_score(y_test,y_pred_dt), 3)
+f1        = round(f1_score(y_test, y_pred_dt), 3)
+accuracy  = round(accuracy_score(y_test,y_pred_dt), 3)
+
+results.append({
+    'model': 'DecisionTreeClassifier',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': dt_CV.best_params_
+})
 
 
 #KNeighborsClassifier
@@ -437,7 +533,7 @@ kn_param_grid = {
     'kneighborsclassifier__weights': ['uniform', 'distance']
 }
 
-kn_CV = GridSearchCV(kn_CV_pipeline, kn_param_grid, cv= cv, n_jobs = -1)
+kn_CV = GridSearchCV(kn_CV_pipeline, kn_param_grid, cv= cv, scoring='average_precision', n_jobs= -1, verbose=1)
 kn_CV.fit(X_train, y_train)
 
 y_pred_kn = kn_CV.predict(X_test)
@@ -446,14 +542,32 @@ print('> KNeighbors results')
 print(classification_report(y_test, y_pred_kn))
 print(confusion_matrix(y_test, y_pred_kn))
 print(f'Best params: {kn_CV.best_params_}', '\n')
+
+y_proba = kn_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test,y_pred_kn, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_kn), 3)
+f1        = round(f1_score(y_test, y_pred_kn), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_kn), 3)
+
+results.append({
+    'model': 'KNeighborsClassifier',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': kn_CV.best_params_
+})
                                    
 
 
 #GaussianNB
-dense = FunctionTransformer(lambda X: X.toarray(), accept_sparse=True)
-
 gnb = GaussianNB()
-gnb_CV_pipeline = make_pipeline(mct,dense, gnb)
+gnb_CV_pipeline = make_pipeline(mct, gnb)
 
 cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
 
@@ -461,7 +575,7 @@ gnb_param_grid = {
     'gaussiannb__var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
 }
 
-gnb_CV = GridSearchCV(gnb_CV_pipeline, gnb_param_grid, cv = cv, n_jobs= -1)
+gnb_CV = GridSearchCV(gnb_CV_pipeline, gnb_param_grid, cv = cv, scoring='average_precision', n_jobs = -1, verbose = 1)
 gnb_CV.fit(X_train, y_train)
 
 y_pred_gnb = gnb_CV.predict(X_test)
@@ -470,3 +584,491 @@ print('> GaussianNB results')
 print(classification_report(y_test, y_pred_gnb))
 print(confusion_matrix(y_test, y_pred_gnb))
 print(f'Best params: {gnb_CV.best_params_}', '\n')
+
+y_proba = gnb_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_gnb, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_gnb), 3)
+f1        = round(f1_score(y_test, y_pred_gnb), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_gnb), 3)
+
+results.append({
+    'model': 'GaussianNB',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': gnb_CV.best_params_
+})
+
+
+#HistGradientBoostingClassifier
+hgb = HistGradientBoostingClassifier(random_state=1)
+hgb_CV_pipeline = make_pipeline(mct, hgb)
+
+cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=1)
+
+hgb_param_grid = {
+    'histgradientboostingclassifier__max_iter': [200, 500],
+    'histgradientboostingclassifier__learning_rate': [0.05, 0.1],
+    'histgradientboostingclassifier__max_depth': [None, 3, 6],
+    'histgradientboostingclassifier__min_samples_leaf': [20, 50],
+    'histgradientboostingclassifier__l2_regularization': [0.0, 1.0],
+    'histgradientboostingclassifier__class_weight': [None, 'balanced']
+}
+
+hgb_CV = GridSearchCV(hgb_CV_pipeline, hgb_param_grid, cv = cv, n_jobs = -1, scoring='average_precision', verbose = 1)
+hgb_CV.fit(X_train, y_train)
+
+y_pred_hgb = hgb_CV.predict(X_test)
+
+print('> HistGradientBoostingClassifier results')
+print(classification_report(y_test, y_pred_hgb ))
+print(confusion_matrix(y_test, y_pred_hgb ))
+print(f'Best params: {hgb_CV.best_params_}', '\n')
+
+
+y_proba = hgb_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_hgb, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_hgb), 3)
+f1        = round(f1_score(y_test, y_pred_hgb), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_hgb), 3)
+
+results.append({
+    'model': 'HistGradientBoostingClassifier',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': hgb_CV.best_params_
+})
+
+
+
+##############################################################
+# step6 data augmentation
+# 
+# preprocessing the data first and use SMOTEC to do the data augmentation
+# strategy: pre1-> data transformation and column location setting
+# pre2-> data onehotencoder to processing the nominal data
+# thresholds adjustment for better classification report
+#############################################################
+
+
+# data preprocessing for data augmentation
+X = df.drop(columns = ['Chronic_Disease','Height_cm','Weight_kg'])
+y = df['Chronic_Disease'].map({'No':0 ,'Yes':1})
+X_train, X_test, y_train, y_test = train_test_split(X, y, stratify = y, test_size = 0.2, random_state = 1)
+
+#columns for data transformation
+num_robust = ['BMI','Sleep_Hours']
+num_std    = ['Age','Stress_Level']
+nom_cols   = ['Gender']
+ord_cols   = ['Smoker','Exercise_Freq','Diet_Quality','Alcohol_Consumption']
+
+Smoker_rank = ['No','Yes']
+Exercise_Freq_rank = ['no','1-2 times/week','3-5 times/week','Daily']
+Diet_Quality_rank = ['Poor','Average','Good','Excellent']
+Alcohol_Consumption_rank = ['no','Low','Moderate','High']
+
+#SMOTEC
+ord_enc = OrdinalEncoder(
+    categories = [Smoker_rank, Exercise_Freq_rank, Diet_Quality_rank, Alcohol_Consumption_rank],
+    handle_unknown = "use_encoded_value", unknown_value = -1
+)
+
+nom_enc = OrdinalEncoder(handle_unknown = "use_encoded_value", unknown_value=-1)
+
+pre1 =  ColumnTransformer(
+    transformers = [
+        ('num_robust', RobustScaler(), num_robust),
+        ('num_std', StandardScaler(), num_std),
+        ('ord', ord_enc, ord_cols),
+        ('nom', nom_enc, nom_cols),
+    ],
+    remainder = 'drop' 
+)
+
+# set the catagorical data index into the numpy array
+# in order to locate the position
+num_r = len(num_robust)
+num_s = len(num_std)
+cat_o = len(ord_cols)
+cat_n = len(nom_cols)
+cat_idx = list(range(num_r + num_s, num_r + num_s + cat_o + cat_n))
+
+pre2 = ColumnTransformer(
+    transformers = [
+        ('num_pass', 'passthrough', slice(0, num_r + num_s)),
+        ('ord_scale', StandardScaler(), slice(num_r + num_s, num_r + num_s + cat_o)),
+        ('nom_ohe', OneHotEncoder(handle_unknown="ignore", sparse_output=False), slice(num_r + num_s + cat_o, num_r + num_s + cat_o + cat_n)),
+    ], 
+    remainder="drop"
+)
+
+
+
+
+#LogisticRegression with data augmentation
+pipe_lr = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('logisticregression', LogisticRegression())
+])
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+lr_param_grid = {
+    'smote__sampling_strategy':[0.3, 0.5, 0.8, 1.0],
+    'smote__k_neighbors': [3, 5, 7],
+    'logisticregression__class_weight': [None, 'balanced'],
+    'logisticregression__penalty':['l2'],
+    'logisticregression__C':[0.01, 0.1, 1, 10],
+    'logisticregression__max_iter':[100, 500, 1000]
+}
+
+lr_CV = GridSearchCV(pipe_lr, lr_param_grid, cv = cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose = 1)
+lr_CV.fit(X_train, y_train)
+
+y_pred_lr = lr_CV.predict(X_test)
+
+print('> LogisticRegression with data augmentation results')
+print(classification_report(y_test,y_pred_lr))
+print(confusion_matrix(y_test,y_pred_lr))
+print(f'Best params: {lr_CV.best_params_}', '\n')
+
+y_proba = lr_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_lr, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_lr), 3)
+f1        = round(f1_score(y_test, y_pred_lr), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_lr), 3)
+
+results.append({
+    'model': 'LogisticRegression_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': lr_CV.best_params_
+})
+
+
+
+
+#SVC with data augmentation
+pipe_svc = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('svc', SVC())
+])
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+svc_param_grid = [
+
+    {'svc__kernel': ['linear'],
+     'svc__C': [0.1, 1, 10],
+     'svc__class_weight': [None, 'balanced']},
+
+    {'svc__kernel': ['rbf'],
+     'svc__C': [0.1, 1, 10],
+     'svc__gamma': ['scale', 'auto'],
+     'svc__class_weight': [None, 'balanced']},
+
+    {'svc__kernel': ['poly'],
+     'svc__C': [0.1, 1, 10],
+     'svc__gamma': ['scale', 'auto'],
+     'svc__degree': [2, 3, 4],
+     'svc__class_weight': [None, 'balanced']},
+]
+
+svc_CV = GridSearchCV(pipe_svc, svc_param_grid, cv = cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose=1)
+
+svc_CV.fit(X_train, y_train)
+y_pred_svc = svc_CV.predict(X_test)
+
+print('> SVC results with data augmentation results')
+print(classification_report(y_test, y_pred_svc))
+print(confusion_matrix(y_test, y_pred_svc))
+print(f'Best params: {svc_CV.best_params_}', '\n')
+
+scores = svc_CV.decision_function(X_test)
+roc = round(roc_auc_score(y_test, scores), 3)
+pr  = round(average_precision_score(y_test, scores), 3)
+
+precision = round(precision_score(y_test,y_pred_svc, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_svc), 3)
+f1        = round(f1_score(y_test, y_pred_svc), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_svc), 3)
+
+results.append({
+    'model': 'SVC_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': svc_CV.best_params_
+})
+
+
+#RandomForestClassifier with data augmentation
+pipe_rf = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('rf',  RandomForestClassifier(random_state = 1, n_jobs=-1))
+])
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+rf_param_grid = {
+    'rf__n_estimators':[100,250,500],
+    'rf__max_depth':[10,25,50],
+    'rf__min_samples_split':[2,5,10],
+    'rf__min_samples_leaf':[1,2,5,10],
+    'rf__class_weight':[None, 'balanced']
+}
+rf_CV = GridSearchCV(pipe_rf, rf_param_grid, cv = cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose=1)
+
+rf_CV.fit(X_train, y_train)
+y_pred_rf = rf_CV.predict(X_test)
+
+print('> RandomForest with data augmentation results')
+print(classification_report(y_test, y_pred_rf))
+print(confusion_matrix(y_test, y_pred_rf))
+print(f'Best params: {rf_CV.best_params_}', '\n')
+
+y_proba = rf_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test,y_pred_rf, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_rf), 3)
+f1        = round(f1_score(y_test, y_pred_rf), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_rf), 3)
+
+results.append({
+    'model': 'RandomForestClassifier_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': rf_CV.best_params_
+})
+
+
+
+#DecisionTreeClassifier with data augmentation
+pipe_dt = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('dt', DecisionTreeClassifier(random_state = 1))
+])
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+dt_param_grid = {
+    'dt__max_depth': [3, 5, 8, 12],
+    'dt__min_samples_leaf': [1, 5, 10],
+    'dt__class_weight': [None, 'balanced']
+}
+
+dt_CV = GridSearchCV(pipe_dt, dt_param_grid, cv = cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose=1)
+dt_CV.fit(X_train, y_train)
+
+y_pred_dt = dt_CV.predict(X_test)
+
+print('> DecisionTree results')
+print(classification_report(y_test, y_pred_dt))
+print(confusion_matrix(y_test, y_pred_dt))
+print(f'Best params: {dt_CV.best_params_}', '\n')
+
+y_proba = dt_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_dt, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_dt), 3)
+f1        = round(f1_score(y_test, y_pred_dt), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_dt), 3)
+
+results.append({
+    'model': 'DecisionTreeClassifier_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': dt_CV.best_params_
+})
+
+
+
+
+#KNeighborsClassifier with data augmentation
+pipe_kn = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('kn', KNeighborsClassifier())
+])
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+kn_param_grid = {
+    'kn__n_neighbors': [3, 5, 7],
+    'kn__weights': ['uniform', 'distance']
+}
+
+kn_CV = GridSearchCV(pipe_kn, kn_param_grid, cv= cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose=1)
+kn_CV.fit(X_train, y_train)
+
+y_pred_kn = kn_CV.predict(X_test)
+
+print('> KNeighbors results')
+print(classification_report(y_test, y_pred_kn))
+print(confusion_matrix(y_test, y_pred_kn))
+print(f'Best params: {kn_CV.best_params_}', '\n')
+
+y_proba = kn_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_kn, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_kn), 3)
+f1        = round(f1_score(y_test, y_pred_kn), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_kn), 3)
+
+results.append({
+    'model': 'KNeighborsClassifier_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': kn_CV.best_params_
+})
+
+
+
+# GaussianNB with data augmentation
+pipe_gnb = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('gnb', GaussianNB())
+])
+
+cv = StratifiedKFold(n_splits = 3, shuffle = True, random_state = 1)
+
+gnb_param_grid = {
+    'gnb__var_smoothing': [1e-9, 1e-8, 1e-7, 1e-6, 1e-5]
+}
+
+gnb_CV = GridSearchCV(pipe_gnb, gnb_param_grid, cv = cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose=1)
+gnb_CV.fit(X_train, y_train)
+
+y_pred_gnb = gnb_CV.predict(X_test)
+
+print('> GaussianNB results')
+print(classification_report(y_test, y_pred_gnb))
+print(confusion_matrix(y_test, y_pred_gnb))
+print(f'Best params: {gnb_CV.best_params_}', '\n')
+
+y_proba = gnb_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_gnb, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_gnb), 3)
+f1        = round(f1_score(y_test, y_pred_gnb), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_gnb), 3)
+
+results.append({
+    'model': 'GaussianNB_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': gnb_CV.best_params_
+})
+
+
+
+#HistGradientBoostingClassifier  with data augmentation
+pipe_hgb = ImbPipeline(steps = [
+    ('pre1', pre1),
+    ('smote', SMOTENC(categorical_features = cat_idx, random_state = 1)),
+    ('pre2', pre2),
+    ('hgb', HistGradientBoostingClassifier(random_state=1))
+])
+
+
+cv = StratifiedKFold(n_splits=3, shuffle=True, random_state=1)
+
+hgb_param_grid = {
+    'hgb__max_iter': [200, 500],
+    'hgb__learning_rate': [0.05, 0.1],
+    'hgb__max_depth': [None, 3, 6],
+    'hgb__min_samples_leaf': [20, 50],
+    'hgb__l2_regularization': [0.0, 1.0],
+    'hgb__class_weight': [None, 'balanced']
+}
+
+hgb_CV = GridSearchCV(pipe_hgb, hgb_param_grid, cv = cv, scoring = "average_precision", refit = True, n_jobs= -1, verbose=1)
+hgb_CV.fit(X_train, y_train)
+
+y_pred_hgb = hgb_CV.predict(X_test)
+
+print('> HistGradientBoostingClassifier results')
+print(classification_report(y_test, y_pred_hgb))
+print(confusion_matrix(y_test, y_pred_hgb))
+print(f'Best params: {hgb_CV.best_params_}', '\n')
+
+y_proba = hgb_CV.predict_proba(X_test)[:, 1]
+roc = round(roc_auc_score(y_test, y_proba), 3)
+pr  = round(average_precision_score(y_test, y_proba), 3)
+
+precision = round(precision_score(y_test, y_pred_hgb, zero_division = 0), 3)
+recall    = round(recall_score(y_test, y_pred_hgb), 3)
+f1        = round(f1_score(y_test, y_pred_hgb), 3)
+accuracy  = round(accuracy_score(y_test, y_pred_hgb), 3)
+
+results.append({
+    'model': 'HistGradientBoostingClassifier_data_augmentation',
+    'ROC-AUC':roc,
+    'PR-AUC': pr,
+    'precision': precision,
+    'recall': recall,
+    'f1': f1,
+    'accuracy': accuracy,
+    'best_params': hgb_CV.best_params_
+})
+
+final_results = pd.DataFrame(results)
+final_results.to_csv('model_results.csv', index = False)

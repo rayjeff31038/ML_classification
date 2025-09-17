@@ -1,0 +1,15 @@
+model,ROC-AUC,PR-AUC,precision,recall,f1,accuracy,best_params
+LogisticRegression,0.472,0.182,0,0,0,0.807,"{'logisticregression__C': 1, 'logisticregression__class_weight': None, 'logisticregression__max_iter': 100, 'logisticregression__penalty': 'l2'}"
+SVC,0.532,0.206,0,0,0,0.807,"{'svc__C': 0.1, 'svc__class_weight': None, 'svc__degree': 2, 'svc__gamma': 'scale', 'svc__kernel': 'poly'}"
+RandomForestClassifier,0.518,0.211,0.143,0.003,0.007,0.803,"{'randomforestclassifier__class_weight': 'balanced', 'randomforestclassifier__max_depth': 50, 'randomforestclassifier__min_samples_leaf': 2, 'randomforestclassifier__min_samples_split': 2, 'randomforestclassifier__n_estimators': 100}"
+DecisionTreeClassifier,0.5,0.193,0.222,0.2,0.211,0.71,"{'decisiontreeclassifier__class_weight': None, 'decisiontreeclassifier__max_depth': None, 'decisiontreeclassifier__min_samples_leaf': 5}"
+KNeighborsClassifier,0.495,0.205,0.237,0.124,0.163,0.753,"{'kneighborsclassifier__n_neighbors': 3, 'kneighborsclassifier__weights': 'distance'}"
+GaussianNB,0.49,0.195,0,0,0,0.807,{'gaussiannb__var_smoothing': 1e-09}
+HistGradientBoostingClassifier,0.491,0.192,0.203,0.055,0.087,0.775,"{'histgradientboostingclassifier__class_weight': None, 'histgradientboostingclassifier__l2_regularization': 0.0, 'histgradientboostingclassifier__learning_rate': 0.1, 'histgradientboostingclassifier__max_depth': None, 'histgradientboostingclassifier__max_iter': 500, 'histgradientboostingclassifier__min_samples_leaf': 50}"
+LogisticRegression_data_augmentation,0.486,0.189,0.195,0.593,0.293,0.447,"{'logisticregression__C': 10, 'logisticregression__class_weight': None, 'logisticregression__max_iter': 100, 'logisticregression__penalty': 'l2', 'smote__k_neighbors': 7, 'smote__sampling_strategy': 1.0}"
+SVC_data_augmentation,0.489,0.195,0.195,0.7,0.305,0.385,"{'svc__C': 0.1, 'svc__class_weight': None, 'svc__kernel': 'linear'}"
+RandomForestClassifier_data_augmentation,0.491,0.195,0.188,0.114,0.142,0.733,"{'rf__class_weight': None, 'rf__max_depth': 25, 'rf__min_samples_leaf': 2, 'rf__min_samples_split': 2, 'rf__n_estimators': 250}"
+DecisionTreeClassifier_data_augmentation,0.498,0.191,0.194,0.607,0.294,0.437,"{'dt__class_weight': None, 'dt__max_depth': 8, 'dt__min_samples_leaf': 10}"
+KNeighborsClassifier_data_augmentation,0.483,0.19,0.182,0.359,0.241,0.564,"{'kn__n_neighbors': 5, 'kn__weights': 'distance'}"
+GaussianNB_data_augmentation,0.499,0.192,0.194,0.534,0.285,0.481,{'gnb__var_smoothing': 1e-09}
+HistGradientBoostingClassifier_data_augmentation,0.495,0.187,0.141,0.038,0.06,0.769,"{'hgb__class_weight': None, 'hgb__l2_regularization': 1.0, 'hgb__learning_rate': 0.05, 'hgb__max_depth': None, 'hgb__max_iter': 500, 'hgb__min_samples_leaf': 20}"
